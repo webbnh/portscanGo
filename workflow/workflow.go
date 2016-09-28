@@ -1,18 +1,21 @@
-// workflow is a package which provides an encapsulated and abstracted workflow
-// model for executing a series of activities (presented as a slice), possibly
-// concurrently.
+// Package workflow provides an encapsulated and abstracted workflow model for
+// executing a series of activities, possibly concurrently.
 package workflow
 
 import (
 	_ "fmt"
 )
 
-// Item provides the interface required to execute each item in the
+// A type which satisfies the workflow.Item interface can be handed off to this
+// package to be executed independently of the caller and other items in the
 // workflow.
 type Item interface {
+	// The Do method initiates the work on the item.
 	Do()
 }
 
+// Workflow represents and controls the flow of work.  Multiple independent 
+// workflows may be created and active concurrently.
 type Workflow struct {
 }
 
@@ -22,13 +25,12 @@ func New() *Workflow {
 	return wf
 }
 
-// Todo:  this function will be use to set characteristics of the workflow,
-// such as maximum number of parallel actors and/or time-rate limits.
+// Set characteristics of the workflow, such as maximum number of parallel
+// actors and/or time-rate limits for starting items.
 func (*Workflow) Set() {
 }
 
-// Enqueue() collects items to be executed in the specified Workflow; items may
-// be executed immediately or executed concurrently with the caller.
+// Enqueue() collects items to be executed in the specified workflow.
 func (Workflow) Enqueue(item Item) {
 	item.Do()
 }
