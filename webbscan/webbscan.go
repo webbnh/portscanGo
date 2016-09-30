@@ -8,6 +8,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/webbnh/DigitalOcean/tcpProbe"
 	"github.com/webbnh/DigitalOcean/workflow"
@@ -35,6 +36,8 @@ func main() {
 	host := flag.String("host", "127.0.0.1", "Host IP address")
 	protocol := flag.String("protocol", "tcp",
 		"Protocol (\"tcp\" or \"udp\")")
+	agents := flag.Int("agents", 8, "Number of concurrent probes")
+	rate := flag.Int("rate", 0, "Maximum probes per second")
 	flag.Parse()
 
 	if *protocol != "tcp" {
@@ -42,10 +45,10 @@ func main() {
 		panic("Only TCP protocol is currently supported")
 	}
 
-	wf := workflow.New()
-
 	wfItems := [65535]workItem{}
+	wf := workflow.New(cap(wfItems), *agents, *rate)
 
+	start := time.Now()
 	for i := range wfItems {
 		// Capture the host and port to be probed, as well as the
 		// place to record the result, using a closure.
@@ -59,6 +62,7 @@ func main() {
 	}
 
 	wf.Wait()
+	elapsed := time.Now().Sub(start)
 
 	fmt.Printf("Open %s ports on %s:\n", *protocol, *host)
 	for _, v := range wfItems {
@@ -66,4 +70,7 @@ func main() {
 			fmt.Println(v.port)
 		}
 	}
+
+	wf.Destroy()
+	fmt.Println("Elapsed time: ", elapsed)
 }
