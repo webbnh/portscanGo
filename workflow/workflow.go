@@ -89,6 +89,11 @@ func (wf Workflow) Enqueue(item Item) {
 	wf.input <- item
 }
 
+// Dequeue() returns a completed items from the specified workflow.
+func (wf Workflow) Dequeue() Item {
+	return <-wf.output
+}
+
 // Wait() causes the caller to block until the workflow items are complete.
 func (wf *Workflow) Wait() {
 	// As long as there is pending input items or active executions,
