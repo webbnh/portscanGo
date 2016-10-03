@@ -73,10 +73,22 @@ func Verbosity() int {
 
 // Out prints the specified message (treating it like a printf format string)
 // if the specified verbosity level is less than or equal to the program's
-// current setting.
+// current setting.  (The message is prefixed with the requested verbosity
+// level.)
 func Out(level int, message string, v ...interface{}) {
 	if level > verbosity {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "["+string('0'+level)+"]"+message, v...)
+}
+
+// Blip prints the specified message (treating it like a printf format string)
+// if the program's current verbosity setting is greater than the specified 
+// lower bound and less than or equal to the specified upper bound.  (The 
+// message is not prefixed with a verbosity value.)
+func Blip(low, high int, message string, v ...interface{}) {
+	if verbosity <= low || verbosity > high {
+		return
+	}
+	fmt.Fprintf(os.Stderr, message, v...)
 }

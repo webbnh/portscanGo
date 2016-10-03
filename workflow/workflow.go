@@ -3,17 +3,19 @@
 package workflow
 
 import (
-	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/webbnh/DigitalOcean/vdiag"
 )
 
 // A type which satisfies the workflow.Item interface can be handed off to this
 // package to be executed independently of the caller and other items in the
 // workflow.
 type Item interface {
-	// The Do method initiates the work on the item.
-	Do()
+	// The Do method initiates the work on the item and sends the result
+	// to the provided chanel
+	Do(chan<- Item)
 }
 
 // Workflow represents and controls the flow of work.  Multiple independent 
@@ -54,7 +56,7 @@ func New(size, maxActors, maxRate int) *Workflow {
 func (wf Workflow) Destroy() {
 	close(wf.input)
 	close(wf.output)
-	fmt.Printf("Performed %d operations, %d without throttling.\n",
+	vdiag.Out(3, "Performed %d operations, %d without throttling.\n",
 		wf.done, wf.unthrottled)
 }
 
@@ -77,10 +79,9 @@ func (wf *Workflow) act() {
 		if !ok {
 			return
 		}
-		item.Do()
+		item.Do(wf.output)
 		atomic.AddInt32(&wf.unthrottled, t)
 		atomic.AddInt32(&wf.done, 1)
-		wf.output <- item
 	}
 }
 

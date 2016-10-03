@@ -22,7 +22,7 @@ import (
 type workItem struct {
 	// Closure which invokes the appropriate probe function using the 
 	// requested parameters (e.g., the host)
-	probeFunc func()
+	probeFunc func(*workItem)
 	// Port to be probed
 	port int
 	// Result of probe (e.g., open, closed, pending)
@@ -32,9 +32,11 @@ type workItem struct {
 // Do is the function which the workflow.Item interface uses to initiate the
 // work on the item.  Here it calls a closure which relieves us from having to
 // include more fields in the item.
-func (t workItem) Do() {
+func (t workItem) Do(output chan<- workflow.Item) {
 	vdiag.Out(8, "In Do() for port %d\n", t.port)
-	t.probeFunc()
+	t.probeFunc(&t)
+	vdiag.Blip(2, 4, "=")
+	output <- t
 	vdiag.Out(8, "Leaving Do() for port %d, result is %v\n",
 		t.port, t.result)
 }
@@ -75,7 +77,7 @@ func main() {
 			vdiag.Verbosity())
 	}
 
-	wfItems := [1]workItem{}
+	wfItems := [65535]workItem{}
 	wf := workflow.New(cap(wfItems), agents, rate)
 
 	start := time.Now()
@@ -86,15 +88,14 @@ func main() {
 		// Capture the host and port to be probed, as well as the
 		// place to record the result, using a closure.
 		port := wfItems[i].port
-		resultPtr := &wfItems[i].result
-		wfItems[i].probeFunc = func() {
+		wfItems[i].probeFunc = func(item *workItem) {
 			vdiag.Out(7, "Calling probe for %s:%d\n", host, port)
-			*resultPtr = tcpProbe.Probe(host, port)
-			vdiag.Out(7, "Wrote %v to %p\n", *resultPtr, resultPtr)
+			item.result = tcpProbe.Probe(host, port)
 		}
 
 		// Send the item off to be independently executed.
 		vdiag.Out(6, "Queuing item %d.\n", i)
+		vdiag.Blip(2, 4, ">")
 		wf.Enqueue(wfItems[i])
 	}
 
@@ -102,6 +103,11 @@ func main() {
 
 	// Wait for the scans to complete.
 	for i := range wfItems {
+		vdiag.Blip(2, 4, "<")
+		if i&0x1f == 0 {
+			vdiag.Blip(1, 2, ".")
+		}
+
 		// Since the items are executed concurrently, they may
 		// complete out of order.  We're done when all the scans have
 		// finished, so check each one.  If the target item is not
@@ -119,13 +125,21 @@ func main() {
 	elapsed := time.Now().Sub(start)
 
 	// Print the result
-	fmt.Printf("Open %s ports on %s:\n", protocol, host)
+	printedHeader := false
 	for _, v := range wfItems {
 		if v.result.IsOpen() {
+			if !printedHeader {
+				fmt.Printf("Open %s ports on %s:\n",
+					protocol, host)
+				printedHeader = true
+			}
 			fmt.Println(v.port)
 		}
 	}
+	if !printedHeader {
+		fmt.Printf("No open %s ports on %s.\n", protocol, host)
+	}
 
 	wf.Destroy()
-	vdiag.Out(1, "Elapsed time: ", elapsed)
+	vdiag.Out(1, "Elapsed time: %v\n", elapsed)
 }
