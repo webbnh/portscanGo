@@ -16,7 +16,7 @@ func init() {
 	re := regexp.MustCompile(`\n(\S+)\s+(\d+)/(tcp|udp)`)
 	text, err := ioutil.ReadFile("/etc/services")
 	if err != nil {
-		panic("Failed to read services file")
+		panic(err)
 	}
 	matches := re.FindAllStringSubmatch(string(text), -1)
 	if matches == nil {
