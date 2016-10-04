@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/webbnh/DigitalOcean/portserv"
 	"github.com/webbnh/DigitalOcean/tcpProbe"
 	"github.com/webbnh/DigitalOcean/vdiag"
 	"github.com/webbnh/DigitalOcean/workflow"
@@ -64,7 +65,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	fmt.Printf("Scanning for open %s ports on %s using %d agents ",
+	vdiag.Out(1, "Scanning for open %s ports on %s using %d agents ",
 		protocol, host, agents)
 	if rate != 0 {
 		fmt.Printf("with a limit of %d probes per second.\n",
@@ -133,7 +134,12 @@ func main() {
 					protocol, host)
 				printedHeader = true
 			}
-			fmt.Println(v.port)
+			portStr := portserv.Tcp(v.port)
+			if portStr == "" {
+				fmt.Println(v.port)
+			} else {
+				fmt.Printf("%d (%s)\n", v.port, portStr)
+			}
 		}
 	}
 	if !printedHeader {
