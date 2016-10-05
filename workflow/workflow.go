@@ -14,7 +14,7 @@ import (
 // workflow.
 type Item interface {
 	// The Do method initiates the work on the item and sends the result
-	// to the provided chanel
+	// to the provided chanel.
 	Do(chan<- Item)
 }
 
@@ -27,10 +27,10 @@ type Workflow struct {
 	interval time.Duration
 	// Timer used for rate throttling
 	throttle *time.Timer
-
-	// Performance counters
+	// Number of completed items
+	done int32
+	// Number of items initiated without throttling
 	unthrottled int32
-	done        int32
 }
 
 // Create a new Workflow, specifying total number of items, the maximum number
@@ -52,7 +52,7 @@ func New(size, maxActors, maxRate int) *Workflow {
 	return wf
 }
 
-// Destroy the workflow, releasing its resources for garbage collection
+// Destroy the workflow, releasing its resources for garbage collection.
 func (wf Workflow) Destroy() {
 	close(wf.input)
 	close(wf.output)
@@ -68,10 +68,13 @@ func (wf *Workflow) act() {
 		// count how many times we proceeded unthrottled
 		t := int32(len(wf.throttle.C))
 
-		// Wait for an interval (to avoid issuing requests too quickly)
-		// then request a new interval timer for the next actor
-		<-wf.throttle.C
-		wf.throttle = time.NewTimer(wf.interval)
+		if wf.interval != 0 {
+			// Wait for an interval (to avoid issuing requests too
+			// quickly) then request a new interval timer for the
+			// next actor.
+			<-wf.throttle.C
+			wf.throttle = time.NewTimer(wf.interval)
+		}
 
 		// Get an item from the input queue, execute it, and queue it
 		// to the output queue; if the input queue is closed, exit.
@@ -98,7 +101,7 @@ func (wf Workflow) Dequeue() Item {
 // Wait() causes the caller to block until the workflow items are complete.
 func (wf *Workflow) Wait() {
 	// As long as there is pending input items or active executions,
-	// wait for completions
+	// wait for completions.
 	for wf.done < int32(cap(wf.output)) {
 		<-wf.output
 	}
