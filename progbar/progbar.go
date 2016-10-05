@@ -1,0 +1,81 @@
+// Package progbar provides a simple ASCII progress bar
+//
+// After creating the bar with New(), the bar can be painted on the screen (or
+// repainted again) using Paint(), it can be updated using Update(), and it
+// can be finished with Done().  The function Spin() can be used to show
+// intermediate activity by causing a spinning effect at the end of the bar.
+package progbar
+
+import "io"
+
+// The magic strings which, when printed in sequence, make the spinner appear
+// to spin.
+var spinStrs [][]byte = [][]byte{[]byte("-\b"), []byte("\\\b"), []byte("|\b"), []byte("/\b")}
+
+// The Bar structure represents the parameters and state of the progress bar.
+type Bar struct {
+	// The width of the bar on the screen in columns.
+	width int
+	// The total size of the bar in "progress units".
+	total int
+	// The current amount of progress in the bar in "progress units".
+	current int
+	// The current orientation of the end-of-bar "spinner".
+	curSpin int
+	// The Writer used to display the bar.
+	w io.Writer
+}
+
+// New creates a new bar which will grow to the specified width as the number
+// of "progress units" approaches the specified size.  The specified Writer is
+// used to display the bar.
+func New(width int, size int, w io.Writer) *Bar {
+	if width <= 0 || size <= 0 || w == nil {
+		return nil
+	}
+	return &Bar{width: width, total: size, w: w}
+}
+
+// Paint displays an empty progress bar on the screen with vertical bars
+// marking the beginning and end, fills the bar up to the current progress
+// point, and leaves the cursor at the next column.
+func (b *Bar) Paint() {
+	var buf []byte
+
+	for i := 0; i < b.width; i++ {
+		buf = append(buf, ' ')
+	}
+
+	buf = append(buf, "|\r|"...)
+
+	for i := 0; i < b.current*b.width/b.total; i++ {
+		buf = append(buf, '=')
+	}
+
+	b.w.Write(buf)
+}
+
+// Update advances the bar by one "progress unit" and, if appropriate, adds a
+// character to the bar on the screen.
+func (b *Bar) Update() {
+	b.current++
+	if b.current%(b.total/b.width) == 0 {
+		b.w.Write([]byte{'='})
+	}
+}
+
+// Done fills the bar by repeatedly calling Update() until it is full, and
+// then moves the cursor to the next line.
+func (b *Bar) Done() {
+	for b.current < b.total {
+		b.Update()
+	}
+	b.w.Write([]byte{'|', '\n'})
+}
+
+// Spin a little "wheel" at the end of the progress bar to indicate
+// intermediate activity.
+func (b *Bar) Spin() {
+	b.curSpin = (b.curSpin + 1) & 0x3
+	b.w.Write(spinStrs[b.curSpin])
+}

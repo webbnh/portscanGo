@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/webbnh/DigitalOcean/portserv"
-//	"github.com/webbnh/DigitalOcean/progbar"
+	"github.com/webbnh/DigitalOcean/progbar"
 	"github.com/webbnh/DigitalOcean/tcpProbe"
 	"github.com/webbnh/DigitalOcean/vdiag"
 	"github.com/webbnh/DigitalOcean/workflow"
 )
+
+var progressBar *progbar.Bar = progbar.New(70, 65535, os.Stderr)
 
 // workItem represents an item to be passed to the workflow (it satisfies the
 // workflow.Item interface), in this case it contains the number of a port to
@@ -37,7 +39,7 @@ type workItem struct {
 func (t workItem) Do(output chan<- workflow.Item) {
 	vdiag.Out(8, "In Do() for port %d\n", t.port)
 	t.probeFunc(&t)
-//	printSpin()
+	progressBar.Spin()
 	output <- t
 	vdiag.Out(8, "Leaving Do() for port %d, result is %v\n",
 		t.port, t.result)
@@ -80,7 +82,7 @@ func main() {
 	wfItems := [65535]workItem{}
 	wf := workflow.New(cap(wfItems), agents, rate)
 
-//	paintProgressBar()
+	progressBar.Paint()
 
 	start := time.Now()
 	// Request a scan of each (and all) of the ports.
@@ -105,7 +107,7 @@ func main() {
 
 	// Wait for the scans to complete.
 	for i := range wfItems {
-//		updateProgressBar()
+		progressBar.Update()
 
 		// Since the items are executed concurrently, they may
 		// complete out of order.  We're done when all the scans have
@@ -123,6 +125,7 @@ func main() {
 	}
 
 	elapsed := time.Now().Sub(start)
+	progressBar.Done()
 
 	// Print the result
 	printedHeader := false
