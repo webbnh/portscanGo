@@ -40,12 +40,10 @@ func New(size, maxActors, maxRate int) *Workflow {
 	wf := new(Workflow)
 	wf.input = make(chan Item, size)
 	wf.output = make(chan Item, size)
-	if maxRate == 0 {
-		wf.interval = 0
-	} else {
+	if maxRate != 0 {
 		wf.interval = time.Second / time.Duration(maxRate)
+		wf.throttle = time.NewTimer(wf.interval)
 	}
-	wf.throttle = time.NewTimer(wf.interval)
 	for i := 0; i < maxActors; i++ {
 		go wf.act()
 	}
@@ -64,11 +62,14 @@ func (wf Workflow) Destroy() {
 // complete.
 func (wf *Workflow) act() {
 	for {
-		// The length of an unbuffered channel is either zero or one;
-		// count how many times we proceeded unthrottled
-		t := int32(len(wf.throttle.C))
+		t := int32(1)	// For the no-rate-limit case
+		if wf.throttle != nil {
+			// The length of an unbuffered channel is either zero
+			// or one -- if it is one, then we won't block and
+			// we'll proceed immediately: use this to count how
+			// many times we proceed unthrottled.
+			t = int32(len(wf.throttle.C))
 
-		if wf.interval != 0 {
 			// Wait for an interval (to avoid issuing requests too
 			// quickly) then request a new interval timer for the
 			// next actor.
