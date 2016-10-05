@@ -64,13 +64,20 @@ func (b *Bar) Update() {
 	}
 }
 
-// Done fills the bar by repeatedly calling Update() until it is full, and
-// then moves the cursor to the next line.
+// Done erases the bar.
 func (b *Bar) Done() {
-	for b.current < b.total {
-		b.Update()
+	var buf []byte
+
+	b.current = b.total	// For completeness
+
+	buf = append(buf, '\r')
+	for i := 0; i < b.width+2; i++ {
+		buf = append(buf, ' ')
 	}
-	b.w.Write([]byte{'|', '\n'})
+	buf = append(buf, '\r')
+
+
+	b.w.Write(buf)
 }
 
 // Spin a little "wheel" at the end of the progress bar to indicate
