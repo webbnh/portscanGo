@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/webbnh/DigitalOcean/portserv"
+//	"github.com/webbnh/DigitalOcean/progbar"
 	"github.com/webbnh/DigitalOcean/tcpProbe"
 	"github.com/webbnh/DigitalOcean/vdiag"
 	"github.com/webbnh/DigitalOcean/workflow"
@@ -36,7 +37,7 @@ type workItem struct {
 func (t workItem) Do(output chan<- workflow.Item) {
 	vdiag.Out(8, "In Do() for port %d\n", t.port)
 	t.probeFunc(&t)
-	vdiag.Blip(2, 4, "=")
+//	printSpin()
 	output <- t
 	vdiag.Out(8, "Leaving Do() for port %d, result is %v\n",
 		t.port, t.result)
@@ -65,13 +66,11 @@ func main() {
 		os.Exit(-1)
 	}
 
-	vdiag.Out(1, "Scanning for open %s ports on %s using %d agents ",
+	vdiag.Out(1, "Scanning for open %s ports on %s using %d agents.\n",
 		protocol, host, agents)
 	if rate != 0 {
-		fmt.Printf("with a limit of %d probes per second.\n",
+		vdiag.Out(1, "Probe rate limited to %d probes per second.\n",
 			rate)
-	} else {
-		fmt.Println("with no send-rate limit")
 	}
 	if vdiag.Verbosity() > 0 {
 		fmt.Printf("(Diagnostic messages verbosity level %d.)\n",
@@ -80,6 +79,8 @@ func main() {
 
 	wfItems := [65535]workItem{}
 	wf := workflow.New(cap(wfItems), agents, rate)
+
+//	paintProgressBar()
 
 	start := time.Now()
 	// Request a scan of each (and all) of the ports.
@@ -90,13 +91,13 @@ func main() {
 		// place to record the result, using a closure.
 		port := wfItems[i].port
 		wfItems[i].probeFunc = func(item *workItem) {
+			var d tcpProbe.Dialer
 			vdiag.Out(7, "Calling probe for %s:%d\n", host, port)
-			item.result = tcpProbe.Probe(host, port)
+			item.result = tcpProbe.Probe(d, host, port)
 		}
 
 		// Send the item off to be independently executed.
 		vdiag.Out(6, "Queuing item %d.\n", i)
-		vdiag.Blip(2, 4, ">")
 		wf.Enqueue(wfItems[i])
 	}
 
@@ -104,10 +105,7 @@ func main() {
 
 	// Wait for the scans to complete.
 	for i := range wfItems {
-		vdiag.Blip(2, 4, "<")
-		if i&0x1f == 0 {
-			vdiag.Blip(1, 2, ".")
-		}
+//		updateProgressBar()
 
 		// Since the items are executed concurrently, they may
 		// complete out of order.  We're done when all the scans have
@@ -123,6 +121,7 @@ func main() {
 			vdiag.Out(5, "got %v.\n", item)
 		}
 	}
+
 	elapsed := time.Now().Sub(start)
 
 	// Print the result
@@ -147,5 +146,12 @@ func main() {
 	}
 
 	wf.Destroy()
-	vdiag.Out(1, "Elapsed time: %v\n", elapsed)
+	vdiag.Out(1, "Elapsed time: %v.\n", elapsed)
+	if len(wfItems)/int(elapsed/time.Second) > 0 {
+		vdiag.Out(1, "Average probe rate: %d probes/second.\n",
+			len(wfItems)/int(elapsed/time.Second))
+	} else {
+		vdiag.Out(1, "Average probe rate: %v/probe.\n",
+			elapsed/time.Duration(len(wfItems)))
+	}
 }
