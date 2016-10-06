@@ -62,7 +62,7 @@ func (wf Workflow) Destroy() {
 // complete.
 func (wf *Workflow) act() {
 	for {
-		t := int32(1)	// For the no-rate-limit case
+		t := int32(1) // For the no-rate-limit case
 		if wf.throttle != nil {
 			// The length of an unbuffered channel is either zero
 			// or one -- if it is one, then we won't block and

@@ -10,7 +10,7 @@ import "io"
 
 // The magic strings which, when printed in sequence, make the spinner appear
 // to spin.
-var spinStrs [][]byte = [][]byte{[]byte("-\b"), []byte("\\\b"), []byte("|\b"), []byte("/\b")}
+var spinStrs []string = []string{"-\b", "\\\b", "|\b", "/\b"}
 
 // The Bar structure represents the parameters and state of the progress bar.
 type Bar struct {
@@ -68,14 +68,13 @@ func (b *Bar) Update() {
 func (b *Bar) Done() {
 	var buf []byte
 
-	b.current = b.total	// For completeness
+	b.current = b.total // For completeness
 
 	buf = append(buf, '\r')
 	for i := 0; i < b.width+2; i++ {
 		buf = append(buf, ' ')
 	}
 	buf = append(buf, '\r')
-
 
 	b.w.Write(buf)
 }
@@ -84,5 +83,5 @@ func (b *Bar) Done() {
 // intermediate activity.
 func (b *Bar) Spin() {
 	b.curSpin = (b.curSpin + 1) & 0x3
-	b.w.Write(spinStrs[b.curSpin])
+	io.WriteString(b.w, spinStrs[b.curSpin])
 }
