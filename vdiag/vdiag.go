@@ -15,34 +15,48 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 )
+
+// Place to send diagnostic output (overwritten for testing)
+var w io.Writer = os.Stderr
 
 // verbosity is the current level of verbosity enabled for the program.
 var verbosity int
 
-// verbShort is a type which supports the methods require to get the -v switch
-// to play nicely with the -verbose switch.
-type verbShort bool
+// verbShort implements the flag.Value interface.  It is used to get the -v
+// switch to play nicely with the -verbose switch.
+type verbShort struct{}
 
 // vShort is just a dummy instantiation required to make the -v switch set the
-// verbosity level to vShortLevel.
+// verbosity level to vShortLevel -- the set method will actually modify the 
+// verbosity level instead of changing the value of vShort.
 var vShort verbShort
 
 const vShortLevel = 2
 
 // String is used by the flag package.
 func (v *verbShort) String() string {
-	return fmt.Sprint(*v) // FIXME:  Should this be printing verbosity instead?
+	return fmt.Sprint(verbosity >= vShortLevel)
 }
 
-// vShort is a boolean flag.
+// verbShort functions as a boolean flag.
+//
+// Note: this interface function is supposed to indicated to the flag package
+// that this custom flag is a boolean flag; however, my version of Go is
+// apparently too old to support this, so I have no idea if it works properly
+// in an up-to-date installation.
 func (v *verbShort) IsBoolFlag() bool {
 	return true
 }
 
 // Set is used by the flag package; the custom method is provided here to
 // allow the -v flag to interact with the -verbose flag appropriately.
+//
+// Note: the argument is ignored becuase it is presumed that the presence of
+// the -v flag (regardless of what value (if any) the user might be forced to
+// give it), is enough to set the verbosity level.
 func (v *verbShort) Set(value string) error {
 	switch {
 	case verbosity == vShortLevel:
@@ -79,16 +93,5 @@ func Out(level int, message string, v ...interface{}) {
 	if level > verbosity {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "["+string('0'+level)+"]"+message, v...)
-}
-
-// Blip prints the specified message (treating it like a printf format string)
-// if the program's current verbosity setting is greater than the specified 
-// lower bound and less than or equal to the specified upper bound.  (The 
-// message is not prefixed with a verbosity value.)
-func Blip(low, high int, message string, v ...interface{}) {
-	if verbosity <= low || verbosity > high {
-		return
-	}
-	fmt.Fprintf(os.Stderr, message, v...)
+	fmt.Fprintf(w, "["+string('0'+level)+"]"+message, v...)
 }
