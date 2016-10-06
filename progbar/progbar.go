@@ -6,7 +6,10 @@
 // intermediate activity by causing a spinning effect at the end of the bar.
 package progbar
 
-import "io"
+import (
+	"io"
+	"strings"
+)
 
 // The magic strings which, when printed in sequence, make the spinner appear
 // to spin.
@@ -40,19 +43,12 @@ func New(width int, size int, w io.Writer) *Bar {
 // marking the beginning and end, fills the bar up to the current progress
 // point, and leaves the cursor at the next column.
 func (b *Bar) Paint() {
-	var buf []byte
-
-	for i := 0; i < b.width; i++ {
-		buf = append(buf, ' ')
+	s := []string{
+		strings.Repeat(" ", b.width+1), // Move the cursor to the right
+		"|\r|",                         // Last bar, return, first bar
+		strings.Repeat("=", b.current*b.width/b.total), // Any progress
 	}
-
-	buf = append(buf, "|\r|"...)
-
-	for i := 0; i < b.current*b.width/b.total; i++ {
-		buf = append(buf, '=')
-	}
-
-	b.w.Write(buf)
+	io.WriteString(b.w, strings.Join(s, ""))
 }
 
 // Update advances the bar by one "progress unit" and, if appropriate, adds a
@@ -60,23 +56,20 @@ func (b *Bar) Paint() {
 func (b *Bar) Update() {
 	b.current++
 	if b.current%(b.total/b.width) == 0 {
-		b.w.Write([]byte{'='})
+		io.WriteString(b.w, "=")
 	}
 }
 
 // Done erases the bar.
 func (b *Bar) Done() {
-	var buf []byte
-
 	b.current = b.total // For completeness
 
-	buf = append(buf, '\r')
-	for i := 0; i < b.width+2; i++ {
-		buf = append(buf, ' ')
+	s := []string{
+		"\r", // Return the cursor to the beginning of the line
+		strings.Repeat(" ", b.width+2), // Clear the whole line
+		"\r",                           // Like it was never there
 	}
-	buf = append(buf, '\r')
-
-	b.w.Write(buf)
+	io.WriteString(b.w, strings.Join(s, ""))
 }
 
 // Spin a little "wheel" at the end of the progress bar to indicate
