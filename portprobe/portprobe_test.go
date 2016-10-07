@@ -1,5 +1,5 @@
-// Unit tests for package tcpProbe
-package tcpProbe
+// Unit tests for package portprobe
+package portprobe
 
 import (
 	"errors"
@@ -64,7 +64,7 @@ func TestString(t *testing.T) {
 	}
 }
 
-// mockDialer implements the tcpProbe.NetDialer interface
+// mockDialer implements the portprobe.NetDialer interface
 type mockDialer struct {
 	t               *testing.T
 	expectedNetwork string

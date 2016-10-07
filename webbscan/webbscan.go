@@ -11,9 +11,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/webbnh/DigitalOcean/portprobe"
 	"github.com/webbnh/DigitalOcean/portserv"
 	"github.com/webbnh/DigitalOcean/progbar"
-	"github.com/webbnh/DigitalOcean/tcpProbe"
 	"github.com/webbnh/DigitalOcean/vdiag"
 	"github.com/webbnh/DigitalOcean/workflow"
 )
@@ -30,7 +30,7 @@ type workItem struct {
 	// Port to be probed
 	port int
 	// Result of probe (e.g., open, closed, pending)
-	result tcpProbe.Result
+	result portprobe.Result
 }
 
 // Do is the function which the workflow.Item interface uses to initiate the
@@ -93,9 +93,9 @@ func main() {
 		// place to record the result, using a closure.
 		port := wfItems[i].port
 		wfItems[i].probeFunc = func(item *workItem) {
-			var d tcpProbe.Dialer
+			var d portprobe.Dialer
 			vdiag.Out(7, "Calling probe for %s:%d\n", host, port)
-			item.result = tcpProbe.Probe(d, host, port)
+			item.result = portprobe.Probe(d, host, port)
 		}
 
 		// Send the item off to be independently executed.

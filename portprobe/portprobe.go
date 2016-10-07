@@ -1,5 +1,5 @@
-// Package tcpProbe provides a function for probing TCP ports on a host.
-package tcpProbe
+// Package portprobe provides functions for probing ports on a host.
+package portprobe
 
 import (
 	"fmt"
