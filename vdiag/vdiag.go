@@ -1,5 +1,5 @@
 // Package vdiag provides a facility which simplifies and centralizes the
-// production of diagnostic messages with various levels of verbosity
+// production of diagnostic messages with various levels of verbosity.
 //
 // Importing the package automagically adds two command line flags, "-v" and
 // "-verbose": the latter takes an integer setting the desired level of
@@ -30,7 +30,7 @@ var verbosity int
 type verbShort struct{}
 
 // vShort is just a dummy instantiation required to make the -v switch set the
-// verbosity level to vShortLevel -- the set method will actually modify the 
+// verbosity level to vShortLevel -- the set method will actually modify the
 // verbosity level instead of changing the value of vShort.
 var vShort verbShort
 
@@ -42,11 +42,6 @@ func (v *verbShort) String() string {
 }
 
 // verbShort functions as a boolean flag.
-//
-// Note: this interface function is supposed to indicated to the flag package
-// that this custom flag is a boolean flag; however, my version of Go is
-// apparently too old to support this, so I have no idea if it works properly
-// in an up-to-date installation.
 func (v *verbShort) IsBoolFlag() bool {
 	return true
 }

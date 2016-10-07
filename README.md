@@ -34,13 +34,13 @@ Highlights of the code include:
 
 The tool provides several command-line switches which control its execution:
 
-  -agents (default 8):  the number of concurrent probes
-  -host (default "127.0.0.1"):  the target host to probe
-  -protocol (default "tcp"):  Protocol ("tcp" or "udp")
-  -rate (default unlimited):  the maximum number of probes to be sent per
-  		 	      second (0: unlimited)
-  -verbose (default none):  The level of verbosity for diagnostic messages
-  	   	    	    (-v is a shorthand for "level 2")
+    `-agents` (default 8):  the number of concurrent probes
+    `-host` (default "127.0.0.1"):  the target host to probe
+    `-protocol` (default "tcp"):  Protocol ("tcp" or "udp")
+    `-rate` (default unlimited):  the maximum number of probes to be sent per
+				  second (0: unlimited)
+    `-verbose` (default none):	The level of verbosity for diagnostic messages
+				(`-v` is a shorthand for "level 2")
 
 In addition to the tool source code, the source includes unit tests for
 (nearly) all functions.

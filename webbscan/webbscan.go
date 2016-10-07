@@ -1,7 +1,19 @@
 /*
-webbscan is a simple port scanner tool.
+webbscan
 
-This is my first attempt at writing a Go program.  :-)
+This is intended to be a simple(ish) port scanner tool, written as a
+demonstration of my programming abilities and as an exercise in learning the
+Go programming language.
+
+The tool provides several command-line switches which control its execution:
+
+    -agents (default 8):  the number of concurrent probes
+    -host (default "127.0.0.1"):  the target host to probe
+    -protocol (default "tcp"):  Protocol ("tcp" or "udp")
+    -rate (default unlimited):  the maximum number of probes to be sent
+				per second (0: unlimited)
+    -verbose (default none):	The level of verbosity for messages
+				(`-v` is a shorthand for "level 2")
 */
 package main
 
@@ -11,9 +23,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/webbnh/DigitalOcean/portprobe"
 	"github.com/webbnh/DigitalOcean/portserv"
 	"github.com/webbnh/DigitalOcean/progbar"
-	"github.com/webbnh/DigitalOcean/tcpProbe"
 	"github.com/webbnh/DigitalOcean/vdiag"
 	"github.com/webbnh/DigitalOcean/workflow"
 )
@@ -24,13 +36,13 @@ var progressBar *progbar.Bar = progbar.New(70, 65535, os.Stderr)
 // workflow.Item interface), in this case it contains the number of a port to
 // to be probed and a place to write the result.
 type workItem struct {
-	// Closure which invokes the appropriate probe function using the 
+	// Closure which invokes the appropriate probe function using the
 	// requested parameters (e.g., the host)
 	probeFunc func(*workItem)
 	// Port to be probed
 	port int
 	// Result of probe (e.g., open, closed, pending)
-	result tcpProbe.Result
+	result portprobe.Result
 }
 
 // Do is the function which the workflow.Item interface uses to initiate the
@@ -61,10 +73,12 @@ func main() {
 	flag.IntVar(&rate, "rate", 0, "Maximum number of probes per second (0: unlimited)")
 	flag.Parse()
 
-	// TODO:  Implement UDP scanning
-	if protocol != "tcp" {
-		// UDP probe requires sending a packet.
-		fmt.Fprint(os.Stderr, "Only TCP protocol is currently supported")
+	switch protocol {
+	case "tcp":
+	case "udp":
+	default:
+		fmt.Fprintf(os.Stderr, "\"%s\" protocol is not supported.\n",
+			protocol)
 		os.Exit(-1)
 	}
 
@@ -93,17 +107,14 @@ func main() {
 		// place to record the result, using a closure.
 		port := wfItems[i].port
 		wfItems[i].probeFunc = func(item *workItem) {
-			var d tcpProbe.Dialer
 			vdiag.Out(7, "Calling probe for %s:%d\n", host, port)
-			item.result = tcpProbe.Probe(d, host, port)
+			item.result = portprobe.Probe(protocol, host, port)
 		}
 
 		// Send the item off to be independently executed.
 		vdiag.Out(6, "Queuing item %d.\n", i)
 		wf.Enqueue(wfItems[i])
 	}
-
-	vdiag.Out(4, "Starting wait.\n")
 
 	// Wait for the scans to complete.
 	for i := range wfItems {
@@ -150,9 +161,9 @@ func main() {
 
 	wf.Destroy()
 	vdiag.Out(1, "Elapsed time: %v.\n", elapsed)
-	if len(wfItems)/int(elapsed/time.Second) > 0 {
+	if time.Duration(len(wfItems))*time.Second > elapsed {
 		vdiag.Out(1, "Average probe rate: %d probes/second.\n",
-			len(wfItems)/int(elapsed/time.Second))
+			time.Duration(len(wfItems))*time.Second/elapsed)
 	} else {
 		vdiag.Out(1, "Average probe rate: %v/probe.\n",
 			elapsed/time.Duration(len(wfItems)))

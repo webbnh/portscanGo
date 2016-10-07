@@ -23,6 +23,9 @@ func TestNew(t *testing.T) {
 	if New(expectedWidth, 0, *expectedWriter) != nil {
 		t.Error("New() succeeded with zero size.")
 	}
+	if New(expectedWidth, expectedWidth-1, *expectedWriter) != nil {
+		t.Error("New() succeeded with width greater than size.")
+	}
 	if New(expectedWidth, expectedSize, nil) != nil {
 		t.Error("New() succeeded with nil Writer.")
 	}

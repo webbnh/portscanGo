@@ -4,14 +4,14 @@ package main
 import (
 	"testing"
 
-	"github.com/webbnh/DigitalOcean/tcpProbe"
+	"github.com/webbnh/DigitalOcean/portprobe"
 	"github.com/webbnh/DigitalOcean/workflow"
 )
 
 func TestDo(t *testing.T) {
 	cases := []struct {
 		testPort  int
-		expResult tcpProbe.Result
+		expResult portprobe.Result
 	}{
 		{1, -1},
 		{2, 1},

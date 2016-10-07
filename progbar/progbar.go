@@ -1,4 +1,4 @@
-// Package progbar provides a simple ASCII progress bar
+// Package progbar provides a simple ASCII progress bar.
 //
 // After creating the bar with New(), the bar can be painted on the screen (or
 // repainted again) using Paint(), it can be updated using Update(), and it
@@ -31,9 +31,10 @@ type Bar struct {
 
 // New creates a new bar which will grow to the specified width as the number
 // of "progress units" approaches the specified size.  The specified Writer is
-// used to display the bar.
+// used to display the bar.  Note: the size of the bar must be at least as
+// large as the width.
 func New(width int, size int, w io.Writer) *Bar {
-	if width <= 0 || size <= 0 || w == nil {
+	if width <= 0 || size <= 0 || size < width || w == nil {
 		return nil
 	}
 	return &Bar{width: width, total: size, w: w}
@@ -45,7 +46,7 @@ func New(width int, size int, w io.Writer) *Bar {
 func (b *Bar) Paint() {
 	s := []string{
 		strings.Repeat(" ", b.width+1), // Move the cursor to the right
-		"|\r|",                         // Last bar, return, first bar
+		"|\r|", // Last bar, return, first bar
 		strings.Repeat("=", b.current*b.width/b.total), // Any progress
 	}
 	io.WriteString(b.w, strings.Join(s, ""))
@@ -60,20 +61,20 @@ func (b *Bar) Update() {
 	}
 }
 
-// Done erases the bar.
+// Done marks the bar as "full" and erases it from the screen.
 func (b *Bar) Done() {
 	b.current = b.total // For completeness
 
 	s := []string{
 		"\r", // Return the cursor to the beginning of the line
 		strings.Repeat(" ", b.width+2), // Clear the whole line
-		"\r",                           // Like it was never there
+		"\r", // Like it was never there
 	}
 	io.WriteString(b.w, strings.Join(s, ""))
 }
 
-// Spin a little "wheel" at the end of the progress bar to indicate
-// intermediate activity.
+// Spin advances a little spinning-annimation at the end of the progress bar
+// to indicate intermediate activity.
 func (b *Bar) Spin() {
 	b.curSpin = (b.curSpin + 1) & 0x3
 	io.WriteString(b.w, spinStrs[b.curSpin])
