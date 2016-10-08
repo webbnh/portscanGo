@@ -61,10 +61,17 @@ func main() {
 	flag.IntVar(&rate, "rate", 0, "Maximum number of probes per second (0: unlimited)")
 	flag.Parse()
 
-	// TODO:  Implement UDP scanning
-	if protocol != "tcp" {
-		// UDP probe requires sending a packet.
-		fmt.Fprint(os.Stderr, "Only TCP protocol is currently supported")
+	var pFunc func(portprobe.NetDialer, string, int) portprobe.Result
+	var pDialer portprobe.Dialer
+
+	switch protocol {
+	case "tcp":
+		pFunc = portprobe.Tcp
+	case "udp":
+		pFunc = portprobe.Udp
+	default:
+		fmt.Fprintf(os.Stderr, "\"%s\" protocol is not supported.\n",
+			protocol)
 		os.Exit(-1)
 	}
 
@@ -93,9 +100,8 @@ func main() {
 		// place to record the result, using a closure.
 		port := wfItems[i].port
 		wfItems[i].probeFunc = func(item *workItem) {
-			var d portprobe.Dialer
 			vdiag.Out(7, "Calling probe for %s:%d\n", host, port)
-			item.result = portprobe.Probe(d, host, port)
+			item.result = pFunc(pDialer, host, port)
 		}
 
 		// Send the item off to be independently executed.

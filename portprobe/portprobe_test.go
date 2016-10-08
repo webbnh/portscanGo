@@ -89,16 +89,21 @@ func (d mockDialer) Dial(network, address string) (net.Conn, error) {
 // Mock Conn implements the net.Conn interface
 type mockConn struct {
 	t           *testing.T
+	network string
 	calledClose *bool
 }
 
 func (d mockConn) Read(b []byte) (n int, err error) {
-	d.t.Fatal("mockConn.Read() unexpectedly called.")
+	if d.network != "udp" {
+		d.t.Fatal("mockConn.Read() unexpectedly called.")
+	}
 	return
 }
 
 func (d mockConn) Write(b []byte) (n int, err error) {
-	d.t.Fatal("mockConn.Write() unexpectedly called.")
+	if d.network != "udp" {
+		d.t.Fatal("mockConn.Write() unexpectedly called.")
+	}
 	return
 }
 
@@ -123,7 +128,9 @@ func (d mockConn) SetDeadline(t time.Time) (err error) {
 }
 
 func (d mockConn) SetReadDeadline(t time.Time) (err error) {
-	d.t.Fatal("mockConn.SetReadDeadline() unexpectedly called.")
+	if d.network != "udp" {
+		d.t.Fatal("mockConn.SetReadDeadline() unexpectedly called.")
+	}
 	return
 }
 
@@ -132,7 +139,7 @@ func (d mockConn) SetWriteDeadline(t time.Time) (err error) {
 	return
 }
 
-func TestProbe(t *testing.T) {
+func TestTcp(t *testing.T) {
 	const node = "127.0.0.1"
 	const port = 0
 
@@ -153,8 +160,44 @@ func TestProbe(t *testing.T) {
 			v.address, v.network, v.err)
 		calledClose := false
 		dialer := mockDialer{t, v.network, v.address,
-			mockConn{t, &calledClose}, v.err}
-		got := Probe(dialer, node, port)
+			mockConn{t, v.network, &calledClose}, v.err}
+		got := Tcp(dialer, node, port)
+		if got != v.result {
+			t.Errorf("Probe returned %v; expected %v for error \"%v\".\n",
+				got, v.result, v.err)
+		} else if calledClose != v.calledClose {
+			notStr := ""
+			if v.calledClose {
+				notStr = "not "
+			}
+			t.Errorf("Close() was unexpectedly %scalled.\n", notStr)
+		}
+	}
+}
+
+func TestUdp(t *testing.T) {
+	const node = "127.0.0.1"
+	const port = 0
+
+	address := node + ":" + strconv.Itoa(port)
+	cases := []struct {
+		network     string
+		address     string
+		err         error
+		result      Result
+		calledClose bool
+	}{
+		{"udp", address, nil, open, true},
+		{"udp", address, errors.New("Connection failed"), closed, false},
+	}
+
+	for _, v := range cases {
+		t.Logf("Testing %s(%s) with error \"%v\".\n",
+			v.address, v.network, v.err)
+		calledClose := false
+		dialer := mockDialer{t, v.network, v.address,
+			mockConn{t, v.network, &calledClose}, v.err}
+		got := Udp(dialer, node, port)
 		if got != v.result {
 			t.Errorf("Probe returned %v; expected %v for error \"%v\".\n",
 				got, v.result, v.err)
