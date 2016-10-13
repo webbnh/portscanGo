@@ -62,30 +62,33 @@ func (wf Workflow) Destroy() {
 // complete.
 func (wf *Workflow) act() {
 	for {
-		t := int32(1) // For the no-rate-limit case
+		t := int32(1) // For the unthrottled & no-throttle cases
 		if wf.throttle != nil {
-			// The length of an unbuffered channel is either zero
-			// or one -- if it is one, then we won't block and
-			// we'll proceed immediately: use this to count how
-			// many times we proceed unthrottled.
-			t = int32(len(wf.throttle.C))
+			select {
+			case <-wf.throttle.C:
+				// We were able to receive without
+				// blocking, so we were not throttled.
+			default:
+				// We are being throttled -- wait for
+				// our turn
+				t = 0
+				<-wf.throttle.C
+			}
 
-			// Wait for an interval (to avoid issuing requests too
-			// quickly) then request a new interval timer for the
-			// next actor.
-			<-wf.throttle.C
+			// Request a new interval timer for the next actor.
 			wf.throttle = time.NewTimer(wf.interval)
 		}
 
-		// Get an item from the input queue, execute it, and queue it
-		// to the output queue; if the input queue is closed, exit.
+		// Get an item from the input queue and execute it (which
+		// should queue it to the output queue); if the input queue is
+		// closed, exit.
 		item, ok := <-wf.input
 		if !ok {
 			return
 		}
 		item.Do(wf.output)
-		atomic.AddInt32(&wf.unthrottled, t)
 		atomic.AddInt32(&wf.done, 1)
+		atomic.AddInt32(&wf.unthrottled, t)
 	}
 }
 
