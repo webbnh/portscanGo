@@ -44,6 +44,26 @@ func TestIsClosed(t *testing.T) {
 	}
 }
 
+// If the result is complete, then IsOpen() should never equal IsClosed();
+// otherwise, they should be equal.
+func TestOpposition(t *testing.T) {
+	for _, v := range results {
+		if v.IsComplete() {
+			if v.IsOpen() == v.IsClosed() {
+				t.Errorf("%v.IsClosed() is unexpectedly equal"+
+					" to %v.IsOpen():  %v.\n",
+					v, v, v.IsOpen())
+			}
+		} else {
+			if v.IsOpen() != v.IsClosed() {
+				t.Errorf("%v.IsClosed() is unexpectedly unequal"+
+					" to %v.IsOpen(). (%v & %v, resp.)\n",
+					v, v, v.IsClosed(), v.IsOpen())
+			}
+		}
+	}
+}
+
 func TestString(t *testing.T) {
 	for _, v := range results {
 		var expected string
@@ -64,7 +84,7 @@ func TestString(t *testing.T) {
 	}
 }
 
-// mockDialerTCP implements the NetDialerTCP interface
+// mockDialerTCP implements the netDialerTCP interface
 type mockDialerTCP struct {
 	t               *testing.T
 	expectedAddress string
@@ -81,15 +101,15 @@ func (d mockDialerTCP) Dial(address string) (net.Conn, error) {
 	return d.conn, d.err
 }
 
-// mockDialerUDP implements the NetDialerUDP interface
+// mockDialerUDP implements the netDialerUDP interface
 type mockDialerUDP struct {
 	t               *testing.T
 	expectedAddress string
 	err             error
-	conn            NetUDPConn
+	conn            netUDPConn
 }
 
-func (d mockDialerUDP) Dial(address string) (NetUDPConn, error) {
+func (d mockDialerUDP) Dial(address string) (netUDPConn, error) {
 	if address != d.expectedAddress {
 		d.t.Errorf("Dial(udp) got address \"%s\"; expected \"%s\".\n",
 			address, d.expectedAddress)
@@ -114,7 +134,7 @@ func (a mockAddr) Network() string {
 }
 
 // mockConn implements both of the net.Conn and net.PacketConn interfaces, and
-// so it implements the NetUDPConn interface
+// so it implements the netUDPConn interface
 type mockConn struct {
 	t            *testing.T
 	network      string
@@ -346,7 +366,7 @@ func TestProbe(t *testing.T) {
 			}
 		}
 
-		probeFuncTCP = func(d NetDialerTCP, gotHost string, gotPort int) Result {
+		probeFuncTCP = func(d netDialerTCP, gotHost string, gotPort int) Result {
 			// I assume the compiler checking will suffice for the
 			// dialer parameter.
 			checkHostPort(gotHost, gotPort)
@@ -354,7 +374,7 @@ func TestProbe(t *testing.T) {
 			return v.result
 		}
 
-		probeFuncUDP = func(d NetDialerUDP, gotHost string, gotPort int) Result {
+		probeFuncUDP = func(d netDialerUDP, gotHost string, gotPort int) Result {
 			// I assume the compiler checking will suffice for the
 			// dialer parameter.
 			checkHostPort(gotHost, gotPort)

@@ -9,12 +9,11 @@ import (
 	"github.com/webbnh/DigitalOcean/vdiag"
 )
 
-// A type which satisfies the workflow.Item interface can be handed off to this
-// package to be executed independently of the caller and other items in the
-// workflow.
+// An Item can be handed off to this package to be executed independently of
+// the caller and other items in the workflow.
 type Item interface {
-	// The Do method initiates the work on the item and sends the result
-	// to the provided chanel.
+	// Do initiates the work on the Item; the result should be sent to the
+	// provided chanel.
 	Do(chan<- Item)
 }
 
@@ -27,15 +26,15 @@ type Workflow struct {
 	interval time.Duration
 	// Timer used for rate throttling
 	throttle *time.Timer
-	// Number of completed items
+	// Number of completed work items
 	done int32
-	// Number of items initiated without throttling
+	// Number of work items initiated without throttling
 	unthrottled int32
 }
 
-// Create a new Workflow, specifying total number of items, the maximum number
-// of items to be executed concurrently, and the maximum number of items to
-// start per second.
+// New creates a new Workflow, specifying the total number of Items, the
+// maximum number of Items to be executed concurrently, and the maximum number
+// of Items to start per second.
 func New(size, maxActors, maxRate int) *Workflow {
 	wf := new(Workflow)
 	wf.input = make(chan Item, size)
@@ -50,7 +49,8 @@ func New(size, maxActors, maxRate int) *Workflow {
 	return wf
 }
 
-// Destroy the workflow, releasing its resources for garbage collection.
+// Destroy destroys the workflow, releasing its resources for garbage
+// collection.
 func (wf Workflow) Destroy() {
 	close(wf.input)
 	close(wf.output)
@@ -58,8 +58,8 @@ func (wf Workflow) Destroy() {
 		wf.done, wf.unthrottled)
 }
 
-// act pulls items from the input queue and executes them until the flow is
-// complete.
+// Act pulls work items from the input queue and executes them until the flow
+// is complete.
 func (wf *Workflow) act() {
 	for {
 		t := int32(1) // For the unthrottled & no-throttle cases
@@ -92,17 +92,18 @@ func (wf *Workflow) act() {
 	}
 }
 
-// Enqueue() collects items to be executed in the specified workflow.
+// Enqueue collects Items to be executed in the specified workflow.
 func (wf Workflow) Enqueue(item Item) {
 	wf.input <- item
 }
 
-// Dequeue() returns a completed items from the specified workflow.
+// Dequeue returns a completed Item from the specified workflow; it will
+// block the caller until an Item is available to return.
 func (wf Workflow) Dequeue() Item {
 	return <-wf.output
 }
 
-// Wait() causes the caller to block until the workflow items are complete.
+// Wait causes the caller to block until all of the workflow Items are complete.
 func (wf *Workflow) Wait() {
 	// As long as there is pending input items or active executions,
 	// wait for completions.

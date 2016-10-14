@@ -1,4 +1,4 @@
-// Package portprobe provides functions for probing ports on a host.
+// Package portprobe provides support for probing ports on a host.
 package portprobe
 
 import (
@@ -19,12 +19,20 @@ const (
 
 const readTimeout = 1 * time.Second
 
+// Result is the result of the probe; the appropriate "IsXXXX()" function
+// should be used to evaluate it.
 type Result int
 
-func (r Result) IsComplete() bool { return r != pending }
-func (r Result) IsOpen() bool     { return r == open }
-func (r Result) IsClosed() bool   { return r == closed }
+// IsClosed returns a boolean indicating whether the port is closed.
+func (r Result) IsClosed() bool { return r == closed }
 
+// IsComplete returns a boolean indicating whether the probe has completed.
+func (r Result) IsComplete() bool { return r != pending }
+
+// IsClosed returns a boolean indicating whether the port is open.
+func (r Result) IsOpen() bool { return r == open }
+
+// String returns the probe result as a string.
 func (r Result) String() string {
 	switch r {
 	case closed:
@@ -37,22 +45,23 @@ func (r Result) String() string {
 	return "<unrecognized value>"
 }
 
-// Wrap the TCP version of net.Dial() in an interface so that we can mock it
-// for testing.
-type NetDialerTCP interface {
+// netDialerTCP wraps the TCP version of net.Dial() in an interface so that we
+// can mock it for testing.
+type netDialerTCP interface {
 	Dial(address string) (net.Conn, error)
 }
 
-// DialerTCP implements the NetDialerTCP interface by invoking the
+// dialerTCP implements the netDialerTCP interface by invoking the
 // corresponding functions from package net.
-type DialerTCP struct{}
+type dialerTCP struct{}
 
-func (d DialerTCP) Dial(address string) (net.Conn, error) {
+func (d dialerTCP) Dial(address string) (net.Conn, error) {
 	return net.Dial("tcp", address)
 }
 
-// Probe determines whether the indicated TCP port on the target host is open.
-func probeTcp(d NetDialerTCP, node string, port int) Result {
+// probeTcp determines whether the indicated TCP port on the target host is
+// open.
+func probeTcp(d netDialerTCP, node string, port int) Result {
 	address := fmt.Sprintf("%s:%d", node, port)
 	conn, err := d.Dial(address)
 	if err != nil {
@@ -63,32 +72,32 @@ func probeTcp(d NetDialerTCP, node string, port int) Result {
 	return open
 }
 
-// NetUDPConn is the interface which net.UDPConn implements; any type which
+// netUDPConn is the interface which net.UDPConn implements; any type which
 // implements this interface implements both net.Conn and net.PacketConn
-type NetUDPConn interface {
+type netUDPConn interface {
 	net.PacketConn
 	Read(b []byte) (n int, err error)
 	Write(b []byte) (n int, err error)
 	RemoteAddr() net.Addr
 }
 
-// Wrap the UDP support in package net in an interface so that we can mock it
-// for testing.
-type NetDialerUDP interface {
-	Dial(address string) (NetUDPConn, error)
+// netDialerUDP wraps the UDP support in package net in an interface so that
+// we can mock it for testing.
+type netDialerUDP interface {
+	Dial(address string) (netUDPConn, error)
 }
 
-// DialerUDP implements the NetDialerUDP interface by invoking the
+// dialerUDP implements the netDialerUDP interface by invoking the
 // corresponding functions from package net.
-type DialerUDP struct{}
+type dialerUDP struct{}
 
-func (d DialerUDP) Dial(address string) (NetUDPConn, error) {
+func (d dialerUDP) Dial(address string) (netUDPConn, error) {
 	conn, err := net.Dial("udp", address)
 	return conn.(*net.UDPConn), err
 }
 
 // Probe determines whether the indicated UDP port on the target host is open.
-func probeUdp(d NetDialerUDP, node string, port int) Result {
+func probeUdp(d netDialerUDP, node string, port int) Result {
 	address := fmt.Sprintf("%s:%d", node, port)
 	conn, err := d.Dial(address)
 	if err != nil {
@@ -156,14 +165,14 @@ var (
 	probeFuncUDP = probeUdp
 )
 
-// Probe dispatches the request to the appropriate probe routine based on the
-// specified protocol.
+// Probe determines whether the specified port on the on the specified host is
+// potentially accepting input via the specified network protocol.
 func Probe(protocol, host string, port int) Result {
 	switch protocol {
 	case "tcp":
-		return probeFuncTCP(DialerTCP{}, host, port)
+		return probeFuncTCP(dialerTCP{}, host, port)
 	case "udp":
-		return probeFuncUDP(DialerUDP{}, host, port)
+		return probeFuncUDP(dialerUDP{}, host, port)
 	default:
 		vdiag.Out(2, "Probe:  unexpected protocol, \"%s\".'n", protocol)
 		return pending

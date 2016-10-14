@@ -1,5 +1,5 @@
-// Package portserv provides interfaces which translate TCP and UDP ports into
-// service names.
+// Package portserv provides interfaces which translate TCP and UDP port
+// numbers into service names.
 package portserv
 
 import (
@@ -9,9 +9,13 @@ import (
 	"strconv"
 )
 
-var tcpServices map[int]string = make(map[int]string)
-var udpServices map[int]string = make(map[int]string)
+// Port to service name mappings
+var (
+	tcpServices map[int]string = make(map[int]string)
+	udpServices map[int]string = make(map[int]string)
+)
 
+// Initialize port to service name mappings by parsing /etc/services.
 func init() {
 	re := regexp.MustCompile(`\n(\S+)\s+(\d+)/(tcp|udp)`)
 	text, err := ioutil.ReadFile("/etc/services")
@@ -40,5 +44,12 @@ func init() {
 	}
 }
 
+// Tcp returns the service name corresponding to the specified TCP
+// port number, as defined in the /etc/services file.  If there is no
+// definition, an empty string is returned.
 func Tcp(port int) string { return tcpServices[port] }
+
+// Udp returns the service name corresponding to the specified UDP
+// port number, as defined in the /etc/services file.  If there is no
+// definition, an empty string is returned.
 func Udp(port int) string { return udpServices[port] }

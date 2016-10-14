@@ -1,7 +1,19 @@
 /*
-webbscan is a simple port scanner tool.
+webbscan
 
-This is my first attempt at writing a Go program.  :-)
+This is intended to be a simple(ish) port scanner tool, written as a
+demonstration of my programming abilities and as an exercise in learning the
+Go programming language.
+
+The tool provides several command-line switches which control its execution:
+
+    -agents (default 8):  the number of concurrent probes
+    -host (default "127.0.0.1"):  the target host to probe
+    -protocol (default "tcp"):  Protocol ("tcp" or "udp")
+    -rate (default unlimited):  the maximum number of probes to be sent
+				per second (0: unlimited)
+    -verbose (default none):	The level of verbosity for messages
+				(`-v` is a shorthand for "level 2")
 */
 package main
 
@@ -149,9 +161,9 @@ func main() {
 
 	wf.Destroy()
 	vdiag.Out(1, "Elapsed time: %v.\n", elapsed)
-	if len(wfItems)/int(elapsed/time.Second) > 0 {
+	if time.Duration(len(wfItems)) * time.Second > elapsed {
 		vdiag.Out(1, "Average probe rate: %d probes/second.\n",
-			len(wfItems)/int(elapsed/time.Second))
+			time.Duration(len(wfItems)) * time.Second / elapsed)
 	} else {
 		vdiag.Out(1, "Average probe rate: %v/probe.\n",
 			elapsed/time.Duration(len(wfItems)))
