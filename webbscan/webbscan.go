@@ -161,9 +161,9 @@ func main() {
 
 	wf.Destroy()
 	vdiag.Out(1, "Elapsed time: %v.\n", elapsed)
-	if time.Duration(len(wfItems)) * time.Second > elapsed {
+	if time.Duration(len(wfItems))*time.Second > elapsed {
 		vdiag.Out(1, "Average probe rate: %d probes/second.\n",
-			time.Duration(len(wfItems)) * time.Second / elapsed)
+			time.Duration(len(wfItems))*time.Second/elapsed)
 	} else {
 		vdiag.Out(1, "Average probe rate: %v/probe.\n",
 			elapsed/time.Duration(len(wfItems)))
