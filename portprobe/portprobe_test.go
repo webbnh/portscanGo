@@ -64,39 +64,71 @@ func TestString(t *testing.T) {
 	}
 }
 
-// mockDialer implements the portprobe.NetDialer interface
-type mockDialer struct {
+// mockDialerTCP implements the NetDialerTCP interface
+type mockDialerTCP struct {
 	t               *testing.T
-	expectedNetwork string
 	expectedAddress string
-	conn            net.Conn
 	err             error
+	conn            net.Conn
 }
 
-func (d mockDialer) Dial(network, address string) (net.Conn, error) {
-	if network != d.expectedNetwork {
-		d.t.Errorf("Dial() received network \"%s\"; expected \"%s\".\n",
-			network, d.expectedNetwork)
-	}
+func (d mockDialerTCP) Dial(address string) (net.Conn, error) {
 	if address != d.expectedAddress {
-		d.t.Errorf("Dial() received address \"%s\"; expected \"%s\".\n",
+		d.t.Errorf("Dial(tcp) got address \"%s\"; expected \"%s\".\n",
 			address, d.expectedAddress)
 	}
 
 	return d.conn, d.err
 }
 
-// Mock Conn implements the net.Conn interface
+// mockDialerUDP implements the NetDialerUDP interface
+type mockDialerUDP struct {
+	t               *testing.T
+	expectedAddress string
+	err             error
+	conn            NetUDPConn
+}
+
+func (d mockDialerUDP) Dial(address string) (NetUDPConn, error) {
+	if address != d.expectedAddress {
+		d.t.Errorf("Dial(udp) got address \"%s\"; expected \"%s\".\n",
+			address, d.expectedAddress)
+	}
+
+	return d.conn, d.err
+}
+
+// mockAddr implements the net.Addr interface
+type mockAddr struct {
+	t     *testing.T
+	laddr string
+}
+
+func (a mockAddr) String() string {
+	return a.laddr
+}
+
+func (a mockAddr) Network() string {
+	a.t.Fatal("mockAddr.Network() unexpectedly called.")
+	return ""
+}
+
+// mockConn implements both of the net.Conn and net.PacketConn interfaces, and
+// so it implements the NetUDPConn interface
 type mockConn struct {
-	t           *testing.T
-	network string
-	calledClose *bool
+	t            *testing.T
+	network      string
+	laddr        string
+	readN        int
+	readErr      error
+	calledClose  *bool
+	calledWrite  *bool
+	calledSetRDL *bool
+	addr         mockAddr
 }
 
 func (d mockConn) Read(b []byte) (n int, err error) {
-	if d.network != "udp" {
-		d.t.Fatal("mockConn.Read() unexpectedly called.")
-	}
+	d.t.Fatal("mockConn.Read() unexpectedly called.")
 	return
 }
 
@@ -104,7 +136,8 @@ func (d mockConn) Write(b []byte) (n int, err error) {
 	if d.network != "udp" {
 		d.t.Fatal("mockConn.Write() unexpectedly called.")
 	}
-	return
+	*d.calledWrite = true
+	return len(b), nil
 }
 
 func (d mockConn) Close() error {
@@ -113,8 +146,10 @@ func (d mockConn) Close() error {
 }
 
 func (d mockConn) LocalAddr() (addr net.Addr) {
-	d.t.Fatal("mockConn.LocalAddr() unexpectedly called.")
-	return
+	if d.network != "udp" {
+		d.t.Fatal("mockConn.LocalAddr() unexpectedly called.")
+	}
+	return mockAddr{d.t, d.laddr}
 }
 
 func (d mockConn) RemoteAddr() (addr net.Addr) {
@@ -131,12 +166,36 @@ func (d mockConn) SetReadDeadline(t time.Time) (err error) {
 	if d.network != "udp" {
 		d.t.Fatal("mockConn.SetReadDeadline() unexpectedly called.")
 	}
+	*d.calledSetRDL = true
 	return
 }
 
 func (d mockConn) SetWriteDeadline(t time.Time) (err error) {
 	d.t.Fatal("mockConn.SetWriteDeadline() unexpectedly called.")
 	return
+}
+
+func (d mockConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
+	if d.network != "udp" {
+		d.t.Fatal("mockConn.Read() unexpectedly called.")
+	}
+	return d.readN, nil, d.readErr
+}
+
+func (d mockConn) WriteTo(b []byte, addr net.Addr) (n int, err error) {
+	d.t.Fatal("mockConn.SetWriteDeadline() unexpectedly called.")
+	return
+}
+
+func checkCalled(t *testing.T, got, exp bool, n int, tag string) {
+	if got != exp {
+		notStr := ""
+		if !got {
+			notStr = "not "
+		}
+		t.Errorf("Case #%d: %s() was unexpectedly %scalled.\n",
+			n, tag, notStr)
+	}
 }
 
 func TestTcp(t *testing.T) {
@@ -155,58 +214,100 @@ func TestTcp(t *testing.T) {
 		{"tcp", address, errors.New("Connection failed"), closed, false},
 	}
 
-	for _, v := range cases {
-		t.Logf("Testing %s(%s) with error \"%v\".\n",
-			v.address, v.network, v.err)
+	for i, v := range cases {
 		calledClose := false
-		dialer := mockDialer{t, v.network, v.address,
-			mockConn{t, v.network, &calledClose}, v.err}
+		dialer := mockDialerTCP{t, v.address, v.err,
+			mockConn{t, v.network, "", 0, nil, &calledClose, nil,
+				nil, mockAddr{}}}
 		got := Tcp(dialer, node, port)
 		if got != v.result {
-			t.Errorf("Probe returned %v; expected %v for error \"%v\".\n",
-				got, v.result, v.err)
-		} else if calledClose != v.calledClose {
-			notStr := ""
-			if v.calledClose {
-				notStr = "not "
-			}
-			t.Errorf("Close() was unexpectedly %scalled.\n", notStr)
+			t.Errorf("Case #%d: Probe returned %v; expected %v for error \"%v\".\n",
+				i, got, v.result, v.err)
 		}
+		checkCalled(t, calledClose, v.calledClose, i, "Close")
 	}
+}
+
+type timeoutErr struct {
+	t          *testing.T
+	wasTimeout bool
+}
+
+func (te timeoutErr) Timeout() bool {
+	return te.wasTimeout
+}
+
+func (te timeoutErr) Temporary() bool {
+	te.t.Fatal("timeoutErr.Temporary() was unexpectedly called.")
+	return false
+}
+
+func (te timeoutErr) Error() string {
+	te.t.Fatal("timeoutErr.Temporary() was unexpectedly called.")
+
+	if te.wasTimeout {
+		return "There was a timeout."
+	}
+	return "There was no timeout."
 }
 
 func TestUdp(t *testing.T) {
 	const node = "127.0.0.1"
-	const port = 0
+	const lport = 0
+	const rport = 1
 
-	address := node + ":" + strconv.Itoa(port)
+	raddress := node + ":" + strconv.Itoa(rport)
+	laddress := node + ":" + strconv.Itoa(lport)
+
 	cases := []struct {
-		network     string
-		address     string
-		err         error
-		result      Result
-		calledClose bool
+		network      string
+		raddr        string
+		laddr        string
+		dialErr      error
+		readErr      error
+		readRet      int
+		result       Result
+		calledClose  bool
+		calledWrite  bool
+		calledSetRDL bool
 	}{
-		{"udp", address, nil, open, true},
-		{"udp", address, errors.New("Connection failed"), closed, false},
+		// Dial() fails (returns non-nil error), result: closed
+		{"udp", raddress, laddress, errors.New("Connection failed"),
+			nil, 0, closed, false, false, false},
+		// Target address equals source address, result: closed
+		{"udp", raddress, raddress, nil, nil, 0, closed, true, false,
+			false},
+		// The read times out, result: open
+		{"udp", raddress, laddress, nil, timeoutErr{t, true}, 0, open,
+			true, true, true},
+		// The read returns (non-timeout) error, result: closed
+		{"udp", raddress, laddress, nil, timeoutErr{t, false}, 0,
+			closed, true, true, true},
+		// The read succeeds (non-zero length), result: open
+		{"udp", raddress, laddress, nil, nil, 10, open, true, true,
+			true},
+		// The read returns zero length, result closed
+		{"udp", raddress, laddress, nil, nil, 0, closed, true, true,
+			true},
 	}
 
-	for _, v := range cases {
-		t.Logf("Testing %s(%s) with error \"%v\".\n",
-			v.address, v.network, v.err)
+	for i, v := range cases {
+		t.Logf("Testing case #%d.\n", i)
 		calledClose := false
-		dialer := mockDialer{t, v.network, v.address,
-			mockConn{t, v.network, &calledClose}, v.err}
-		got := Udp(dialer, node, port)
+		calledWrite := false
+		calledSetRDL := false
+		dialer := mockDialerUDP{t, v.raddr, v.dialErr,
+			&mockConn{t, v.network, v.laddr, v.readRet,
+				v.readErr, &calledClose, &calledWrite,
+				&calledSetRDL, mockAddr{t, v.laddr}}}
+		got := Udp(dialer, node, rport)
 		if got != v.result {
-			t.Errorf("Probe returned %v; expected %v for error \"%v\".\n",
-				got, v.result, v.err)
-		} else if calledClose != v.calledClose {
-			notStr := ""
-			if v.calledClose {
-				notStr = "not "
-			}
-			t.Errorf("Close() was unexpectedly %scalled.\n", notStr)
+			t.Errorf("Case #%d: Probe returned %v; expected %v.\n",
+				i, got, v.result)
 		}
+		checkCalled(t, calledClose, v.calledClose, i, "Close")
+		checkCalled(t, calledWrite, v.calledWrite, i, "Write")
+		checkCalled(t, calledSetRDL, v.calledSetRDL, i,
+			"SetReadDeadline")
 	}
 }

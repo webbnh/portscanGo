@@ -24,7 +24,7 @@ var progressBar *progbar.Bar = progbar.New(70, 65535, os.Stderr)
 // workflow.Item interface), in this case it contains the number of a port to
 // to be probed and a place to write the result.
 type workItem struct {
-	// Closure which invokes the appropriate probe function using the 
+	// Closure which invokes the appropriate probe function using the
 	// requested parameters (e.g., the host)
 	probeFunc func(*workItem)
 	// Port to be probed
@@ -61,14 +61,9 @@ func main() {
 	flag.IntVar(&rate, "rate", 0, "Maximum number of probes per second (0: unlimited)")
 	flag.Parse()
 
-	var pFunc func(portprobe.NetDialer, string, int) portprobe.Result
-	var pDialer portprobe.Dialer
-
 	switch protocol {
 	case "tcp":
-		pFunc = portprobe.Tcp
 	case "udp":
-		pFunc = portprobe.Udp
 	default:
 		fmt.Fprintf(os.Stderr, "\"%s\" protocol is not supported.\n",
 			protocol)
@@ -101,15 +96,21 @@ func main() {
 		port := wfItems[i].port
 		wfItems[i].probeFunc = func(item *workItem) {
 			vdiag.Out(7, "Calling probe for %s:%d\n", host, port)
-			item.result = pFunc(pDialer, host, port)
+			// FIXME:  This logic should be moved to portprobe.
+			switch protocol {
+			case "tcp":
+				item.result = portprobe.Tcp(
+					portprobe.DialerTCP{}, host, port)
+			case "udp":
+				item.result = portprobe.Udp(
+					portprobe.DialerUDP{}, host, port)
+			}
 		}
 
 		// Send the item off to be independently executed.
 		vdiag.Out(6, "Queuing item %d.\n", i)
 		wf.Enqueue(wfItems[i])
 	}
-
-	vdiag.Out(4, "Starting wait.\n")
 
 	// Wait for the scans to complete.
 	for i := range wfItems {

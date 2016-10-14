@@ -17,7 +17,7 @@ const (
 	open
 )
 
-const readTimeout = 1*time.Second
+const readTimeout = 1 * time.Second
 
 type Result int
 
@@ -37,61 +37,115 @@ func (r Result) String() string {
 	return "<unrecognized value>"
 }
 
-// Wrap net.Dial() in an interface so that we can mock it for testing.
-type NetDialer interface {
-	Dial(network, address string) (net.Conn, error)
+// Wrap the TCP version of net.Dial() in an interface so that we can mock it
+// for testing.
+type NetDialerTCP interface {
+	Dial(address string) (net.Conn, error)
 }
 
-// Dialer implements the NetDialer interface by invoking net.Dial().
-type Dialer struct{}
+// DialerTCP implements the NetDialerTCP interface by invoking the
+// corresponding functions from package net.
+type DialerTCP struct{}
 
-func (d Dialer) Dial(network, address string) (net.Conn, error) {
-	return net.Dial(network, address)
+func (d DialerTCP) Dial(address string) (net.Conn, error) {
+	return net.Dial("tcp", address)
 }
 
 // Probe determines whether the indicated TCP port on the target host is open.
-func Tcp(d NetDialer, node string, port int) Result {
+func Tcp(d NetDialerTCP, node string, port int) Result {
 	address := fmt.Sprintf("%s:%d", node, port)
-	conn, err := d.Dial("tcp", address)
+	conn, err := d.Dial(address)
 	if err != nil {
+		vdiag.Out(6, "Dial(tcp:%s) returned \"%v\".\n", address, err)
 		return closed
 	}
 	conn.Close()
 	return open
 }
 
+// NetUDPConn is the interface which net.UDPConn implements; any type which
+// implements this interface implements both net.Conn and net.PacketConn
+type NetUDPConn interface {
+	net.PacketConn
+	Read(b []byte) (n int, err error)
+	Write(b []byte) (n int, err error)
+	RemoteAddr() net.Addr
+}
+
+// Wrap the UDP support in package net in an interface so that we can mock it
+// for testing.
+type NetDialerUDP interface {
+	Dial(address string) (NetUDPConn, error)
+}
+
+// DialerUDP implements the NetDialerUDP interface by invoking the
+// corresponding functions from package net.
+type DialerUDP struct{}
+
+func (d DialerUDP) Dial(address string) (NetUDPConn, error) {
+	conn, err := net.Dial("udp", address)
+	return conn.(*net.UDPConn), err
+}
+
 // Probe determines whether the indicated UDP port on the target host is open.
-func Udp(d NetDialer, node string, port int) Result {
+func Udp(d NetDialerUDP, node string, port int) Result {
 	address := fmt.Sprintf("%s:%d", node, port)
-	conn, err := d.Dial("udp", address)
+	conn, err := d.Dial(address)
 	if err != nil {
-		vdiag.Out(6, "UDP Dial() returned \"%v\".\n", err)
+		vdiag.Out(6, "Dial(udp:%s) returned \"%v\".\n", address, err)
+		// We failed to establish a connection...if this can ever
+		// happen, assume it means the port is closed.
 		return closed
 	}
 	defer conn.Close()
 
-	var buf bytes.Buffer
-	m := []byte("Some UDP message")
+	// If the target socket just happens to be the one that we're sending
+	// from (e.g., the target host is localhost), then that socket would
+	// be closed if we weren't using it.
+	if address == conn.LocalAddr().String() {
+		vdiag.Out(5, "Probing myself!\n")
+		return closed
+	}
 
+	m := []byte("Some UDP message")
 	n, err := conn.Write(m)
 	if err != nil || n != len(m) {
-		vdiag.Out(4, "UDP Write() returned %d, \"%v\".\n", n, err)
+		panic(fmt.Sprintf("UDP Write() returned %d, \"%v\".\n", n, err))
 	}
 
 	err = conn.SetReadDeadline(time.Now().Add(readTimeout))
 	if err != nil {
-		vdiag.Out(4, "UDP SetReadDeadline() returned \"%v\".\n",
-			err)
+		panic(fmt.Sprintf("UDP SetReadDeadline() returned \"%v\".\n",
+			err))
 	}
 
-	n, err = conn.Read(buf.Bytes())
+	var buf bytes.Buffer
+	n, _, err = conn.ReadFrom(buf.Bytes())
 	if err != nil {
-		vdiag.Out(4, "UDP Read() returned %d, \"%v\".\n", n, err)
-
 		if err.(net.Error).Timeout() {
+			// There was something there, but it declined to
+			// respond in a timely fashion:  assume the port is
+			// open.
 			return open
 		}
+
+		// There was an error (likely "connection refused") accessing
+		// the port:  assume that it is closed.
+		vdiag.Out(5, "ReadFrom(%d) returned %d, \"%v\".\n",
+			port, n, err)
+		return closed
 	}
 
+	if n > 0 {
+		// Something actually responded to our message!  The port must
+		// be open.
+		vdiag.Out(5, "ReadFrom(%d) returned %d, \"%v\".\n",
+			port, n, buf.Bytes())
+		return open
+	}
+
+	// We got a zero-length read...assume failure and that the port is
+	// closed.
+	vdiag.Out(5, "ReadFrom(%d) returned zero without error.\n", port)
 	return closed
 }
