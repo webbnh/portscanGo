@@ -18,7 +18,7 @@ type Item interface {
 	Do(chan<- Item)
 }
 
-// Workflow represents and controls the flow of work.  Multiple independent 
+// Workflow represents and controls the flow of work.  Multiple independent
 // workflows may be created and active concurrently.
 type Workflow struct {
 	// Queues of pending and completed work items

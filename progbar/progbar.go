@@ -45,7 +45,7 @@ func New(width int, size int, w io.Writer) *Bar {
 func (b *Bar) Paint() {
 	s := []string{
 		strings.Repeat(" ", b.width+1), // Move the cursor to the right
-		"|\r|",                         // Last bar, return, first bar
+		"|\r|", // Last bar, return, first bar
 		strings.Repeat("=", b.current*b.width/b.total), // Any progress
 	}
 	io.WriteString(b.w, strings.Join(s, ""))
@@ -67,7 +67,7 @@ func (b *Bar) Done() {
 	s := []string{
 		"\r", // Return the cursor to the beginning of the line
 		strings.Repeat(" ", b.width+2), // Clear the whole line
-		"\r",                           // Like it was never there
+		"\r", // Like it was never there
 	}
 	io.WriteString(b.w, strings.Join(s, ""))
 }

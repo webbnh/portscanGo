@@ -30,7 +30,7 @@ var verbosity int
 type verbShort struct{}
 
 // vShort is just a dummy instantiation required to make the -v switch set the
-// verbosity level to vShortLevel -- the set method will actually modify the 
+// verbosity level to vShortLevel -- the set method will actually modify the
 // verbosity level instead of changing the value of vShort.
 var vShort verbShort
 
