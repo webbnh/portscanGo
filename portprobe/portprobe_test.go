@@ -198,7 +198,7 @@ func checkCalled(t *testing.T, got, exp bool, n int, tag string) {
 	}
 }
 
-func TestTcp(t *testing.T) {
+func TestProbeTcp(t *testing.T) {
 	const node = "127.0.0.1"
 	const port = 0
 
@@ -219,7 +219,7 @@ func TestTcp(t *testing.T) {
 		dialer := mockDialerTCP{t, v.address, v.err,
 			mockConn{t, v.network, "", 0, nil, &calledClose, nil,
 				nil, mockAddr{}}}
-		got := Tcp(dialer, node, port)
+		got := probeTcp(dialer, node, port)
 		if got != v.result {
 			t.Errorf("Case #%d: Probe returned %v; expected %v for error \"%v\".\n",
 				i, got, v.result, v.err)
@@ -251,7 +251,7 @@ func (te timeoutErr) Error() string {
 	return "There was no timeout."
 }
 
-func TestUdp(t *testing.T) {
+func TestProbeUdp(t *testing.T) {
 	const node = "127.0.0.1"
 	const lport = 0
 	const rport = 1
@@ -300,7 +300,7 @@ func TestUdp(t *testing.T) {
 			&mockConn{t, v.network, v.laddr, v.readRet,
 				v.readErr, &calledClose, &calledWrite,
 				&calledSetRDL, mockAddr{t, v.laddr}}}
-		got := Udp(dialer, node, rport)
+		got := probeUdp(dialer, node, rport)
 		if got != v.result {
 			t.Errorf("Case #%d: Probe returned %v; expected %v.\n",
 				i, got, v.result)
@@ -309,5 +309,66 @@ func TestUdp(t *testing.T) {
 		checkCalled(t, calledWrite, v.calledWrite, i, "Write")
 		checkCalled(t, calledSetRDL, v.calledSetRDL, i,
 			"SetReadDeadline")
+	}
+}
+
+func TestProbe(t *testing.T) {
+	host := "localhost"
+	port := 42
+	cases := []struct {
+		protocol       string
+		result         Result
+		calledProbeTcp bool
+		calledProbeUdp bool
+	}{
+		{"tcp", open, true, false},
+		{"tcp", closed, true, false},
+		{"udp", open, false, true},
+		{"udp", closed, false, true},
+		{"bad", pending, false, false},
+	}
+
+	for i, v := range cases {
+		calledProbeTcp := false
+		calledProbeUdp := false
+		t.Logf("Testing case #%d.\n", i)
+
+		checkHostPort := func(gotHost string, gotPort int) {
+			if gotHost != host {
+				t.Errorf("Case #%d: "+
+					"Got host \"%s\"; expected \"%s\".\n",
+					i, gotHost, host)
+			}
+			if gotPort != port {
+				t.Errorf("Case #%d: "+
+					"Got port \"%d\"; expected \"%d\".\n",
+					i, gotPort, port)
+			}
+		}
+
+		probeFuncTCP = func(d NetDialerTCP, gotHost string, gotPort int) Result {
+			// I assume the compiler checking will suffice for the
+			// dialer parameter.
+			checkHostPort(gotHost, gotPort)
+			calledProbeTcp = true
+			return v.result
+		}
+
+		probeFuncUDP = func(d NetDialerUDP, gotHost string, gotPort int) Result {
+			// I assume the compiler checking will suffice for the
+			// dialer parameter.
+			checkHostPort(gotHost, gotPort)
+			calledProbeUdp = true
+			return v.result
+		}
+
+		got := Probe(v.protocol, host, port)
+		if got != v.result {
+			t.Errorf("Case #%d: Probe returned %v; expected %v.\n",
+				i, got, v.result)
+		}
+
+		checkCalled(t, calledProbeTcp, v.calledProbeTcp, i, "probeTcp")
+		checkCalled(t, calledProbeUdp, v.calledProbeUdp, i, "probeUdp")
 	}
 }

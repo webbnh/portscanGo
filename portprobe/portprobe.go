@@ -52,7 +52,7 @@ func (d DialerTCP) Dial(address string) (net.Conn, error) {
 }
 
 // Probe determines whether the indicated TCP port on the target host is open.
-func Tcp(d NetDialerTCP, node string, port int) Result {
+func probeTcp(d NetDialerTCP, node string, port int) Result {
 	address := fmt.Sprintf("%s:%d", node, port)
 	conn, err := d.Dial(address)
 	if err != nil {
@@ -88,7 +88,7 @@ func (d DialerUDP) Dial(address string) (NetUDPConn, error) {
 }
 
 // Probe determines whether the indicated UDP port on the target host is open.
-func Udp(d NetDialerUDP, node string, port int) Result {
+func probeUdp(d NetDialerUDP, node string, port int) Result {
 	address := fmt.Sprintf("%s:%d", node, port)
 	conn, err := d.Dial(address)
 	if err != nil {
@@ -148,4 +148,24 @@ func Udp(d NetDialerUDP, node string, port int) Result {
 	// closed.
 	vdiag.Out(5, "ReadFrom(%d) returned zero without error.\n", port)
 	return closed
+}
+
+// Instances of the probe functions which can be overridden for unit testing.
+var (
+	probeFuncTCP = probeTcp
+	probeFuncUDP = probeUdp
+)
+
+// Probe dispatches the request to the appropriate probe routine based on the
+// specified protocol.
+func Probe(protocol, host string, port int) Result {
+	switch protocol {
+	case "tcp":
+		return probeFuncTCP(DialerTCP{}, host, port)
+	case "udp":
+		return probeFuncUDP(DialerUDP{}, host, port)
+	default:
+		vdiag.Out(2, "Probe:  unexpected protocol, \"%s\".'n", protocol)
+		return pending
+	}
 }

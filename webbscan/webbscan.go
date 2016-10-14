@@ -96,15 +96,7 @@ func main() {
 		port := wfItems[i].port
 		wfItems[i].probeFunc = func(item *workItem) {
 			vdiag.Out(7, "Calling probe for %s:%d\n", host, port)
-			// FIXME:  This logic should be moved to portprobe.
-			switch protocol {
-			case "tcp":
-				item.result = portprobe.Tcp(
-					portprobe.DialerTCP{}, host, port)
-			case "udp":
-				item.result = portprobe.Udp(
-					portprobe.DialerUDP{}, host, port)
-			}
+			item.result = portprobe.Probe(protocol, host, port)
 		}
 
 		// Send the item off to be independently executed.
